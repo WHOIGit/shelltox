@@ -16,7 +16,7 @@ alphagamma is a CLI tool for calculating best uptake and depuration constants fo
 
 Basic usage: `python alphagamma.py alphagamma.ini --src ../data`
 
-Here, `alphagamma.ini` is a configuration file containing year-location triplets with a strong corellation between HAB and measured shellfish toxicity.
+Here, `alphagamma.ini` is a configuration file containing year-location triplets with a strong corellation between HABs and measured shellfish toxicity sites.
 
 ## Bokeh App
 bokeh_app is a graphical modeling tool for viewing and interacting with data and models.
