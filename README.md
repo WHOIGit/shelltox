@@ -8,13 +8,8 @@ The tools presented herein are designed to present the collected data and calcul
 
 ## Installation
 Create a conda environment with the following command. Run programs from this git under this shelltox environment.
+
 `conda create -n shelltox python=3.7 bokeh=1.0 pandas=0.23 requests`
-
-## Bokeh App
-bokeh_app is a graphical modeling tool for viewing and interacting with data and models.
-`restart_bokeh.sh` is a script for restarting web-application service. If installed on a server other that shelltox.whoi.edu it would have to be edited to work properly again.
-
-![bokeh_app_example](https://github.com/WHOIGit/shelltox/tree/master/misc/bokeh_app_example.png)
 
 ## AlphaGamma
 alphagamma is a CLI tool for calculating best uptake and depuration constants for a series of years and data-locations. It also calculates estimated best overall constants for a given input series.
@@ -22,4 +17,11 @@ alphagamma is a CLI tool for calculating best uptake and depuration constants fo
 Basic usage: `python alphagamma.py alphagamma.ini --src ../data`
 
 Here, `alphagamma.ini` is a configuration file containing year-location triplets with a strong corellation between HAB and measured shellfish toxicity.
+
+## Bokeh App
+bokeh_app is a graphical modeling tool for viewing and interacting with data and models.
+`restart_bokeh.sh` is a script for restarting web-application service. If installed on a server other that shelltox.whoi.edu it would have to be edited to work properly again.
+
+![bokeh_app example](https://github.com/WHOIGit/shelltox/raw/master/misc/bokeh_app_example.png)
+
 
