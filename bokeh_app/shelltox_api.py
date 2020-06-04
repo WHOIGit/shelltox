@@ -55,10 +55,19 @@ def load_dataset(fname):
     try: df = pd.read_csv(fname, index_col=0, parse_dates=True)
     except: df = pd.read_csv('data/{}'.format(fname), index_col=0, parse_dates=True)
     
+    # for blank lines, the dates are interpretted as NaN which messes up later functions, so remove them
+    df = df[df.index.notnull()]
+
+    #removing duplicate dates
+    if any(df.index.duplicated()):
+        print('DF CONTAINED DUPLICATE ROWS')
+        df = df[~df.index.duplicated(keep='first')]
+    
     # insert rows where there are missing days to get a monotonic timeseries
-    df = df.reindex( pd.date_range(start=df.index[0],end=df.index[-1]) )
+    df = df.reindex( pd.date_range(start=df.index[0],end=df.index[-1]+pd.DateOffset(days=1)) )
     
     df.index.name = 'date'
+
     return df
 
 
@@ -253,8 +262,13 @@ def model_tox_series(df, cell_col, tox_col, tox_col_model, tox_const, cell_const
     # Set up model column and interpolation
     if tox_col_model not in df.columns:
         df[tox_col_model] = pd.np.nan
-    df_model = df[[cell_col,tox_col,tox_col_model]].interpolate(limit_area='inside')
-    
+
+    if tox_col == '':
+        df_model = df[[cell_col,tox_col_model]].interpolate(limit_area='inside')
+        if T0 is None: T0 = 0  # there can be no 'measured' start value
+    else:
+        df_model = df[[cell_col,tox_col,tox_col_model]].interpolate(limit_area='inside')
+
     # determining starting conditions
     for date in df_model.index:
         t0=date
@@ -266,17 +280,19 @@ def model_tox_series(df, cell_col, tox_col, tox_col_model, tox_const, cell_const
         if not isnan(C0) and not isnan(TO): 
             df_model.loc[t0+aday,tox_col_model] = tox_const*TO + cell_const*C0
             break       
-    
+
     # applying the model until cell counts run out
     for date in df_model[t0+aday:].index:
         Ti = df_model.loc[date,tox_col_model]
         Ci = df_model.loc[date+aday-lag,cell_col]
         if isnan(Ci): break
         df_model.loc[date+aday,tox_col_model] = tox_const*Ti + cell_const*Ci
-    
+
     # calculating the root mean square deviation
-    rms = calc_rms_df(df_model, tox_col, tox_col_model)
-    
+    if tox_col != '':
+        rms = calc_rms_df(df_model, tox_col, tox_col_model)
+    else: rms = float('inf')
+
     # inserting the model data back into the input dataframe
     df[tox_col_model] = df_model[tox_col_model]
     
@@ -302,6 +318,7 @@ def calc_rms(x,y):
     returns rms = √[ ∑(x-y)² / n ]
     '''
     xy = list(zip(*[x,y]))
+    if len(xy) == 0: return float('inf')
     rmsd = sqrt(sum([(x-y)**2 for x,y in xy])/len(xy))
     return rmsd
     #squares = sum([(x-y)**2 for x,y in xy])
@@ -333,7 +350,6 @@ def calc_regression(x,y):
     Returns a dict with 'slope', 'y_intercept', and 'r2'
     """
     xy = list(zip(*[x,y]))  # list of tuples
-    
     x_bar = mean(x)
     y_bar = mean(y)
     xy_bar = mean([X*Y for X,Y in xy])
@@ -408,7 +424,6 @@ def plot_many_regressions(df, measured_tox_col, modeled_tox_col):
     Returns 1) descriptive text of the regression line parameters
             2) bokeh Tabs layout of e regression line plot and data point DataTable
     """
-    
     # setting up the data, keep only rows with both measured and modeled datapoints
     df_model = df[[measured_tox_col, modeled_tox_col]].dropna()
     toxobs = df_model[measured_tox_col].tolist()
@@ -820,8 +835,8 @@ def model_compare(df_tox, show_plot=False):
 
     # setting up the math
     df_tox = df_tox.dropna()
-    measured_tox_col = [col for col in df_tox.columns if 'TOX' in col][0]
-    modeled_toxs_cols = [col for col in df_tox.columns if 'TOX' not in col]
+    measured_tox_col = [col for col in df_tox.columns if col.upper().startswith('TOX') or col.upper().startswith('PSP')][0]
+    modeled_toxs_cols = [col for col in df_tox.columns if not col.upper().startswith('TOX') and not col.upper().startswith('PSP')] 
     
     # setting up datatable columns
     measured_tox = df_tox[measured_tox_col].tolist()
@@ -898,7 +913,7 @@ def modify_multi_plot(doc):
         
     all_series = df.columns.tolist()
     esp_series = [serie for serie in all_series if 'esp' in serie.lower() or 'ifcb' in serie.lower()]
-    tox_series = [serie for serie in all_series if serie.upper().startswith('TOX')]
+    tox_series = [serie for serie in all_series if serie.upper().startswith('TOX') or serie.upper().startswith('PSP') ]
     
     # Controls #
     year_select = Select(title='Dataset', options=datasets, value=datasets[-1])
@@ -957,27 +972,34 @@ def modify_model_plot(doc):
     # Load Initial Data
     global df
     datasets = sorted(os.listdir('data'))
-    df = load_dataset(datasets[-1])
+    try: 
+        df = load_dataset(datasets[-1])
+        load_error = False 
+    except: 
+        df = pd.DataFrame()
+        load_error = True
         
     all_series = df.columns.tolist()
-    esp_series = [serie for serie in all_series if 'esp' in serie.lower() or 'ifcb' in serie.lower()]
-    tox_series = [serie for serie in all_series if serie.lower().startswith('tox')]     
+    esp_series = [serie for serie in all_series if serie.upper().startswith('ESP') or serie.upper().startswith('IFCB')]
+    tox_series = [serie for serie in all_series if serie.upper().startswith('TOX') or serie.upper().startswith('PSP') ]     
     
     # Control Widgets #
     year_select =      Select(title='Dataset',          options=datasets,   value=datasets[-1])
-    model_esp_select = Select(title='ESP for Modeling', options=esp_series, value=esp_series[0])
-    model_tox_select = Select(title='Shellfish Site',   options=tox_series, value=tox_series[0])
-    tox_const_input =  TextInput(title='toxicity constant c1',   value='')
-    cell_const_input = TextInput(title='cell count constant c2', value='')
+    model_esp_select = Select(title='ESP for Modeling', options=esp_series, value=esp_series[0] if esp_series else '')
+    model_tox_select = Select(title='Shellfish Site',   options=tox_series, value=tox_series[0] if tox_series else '')
+    tox_const_input =  TextInput(title='toxicity constant c1',   value='0.9', placeholder='0.9')
+    cell_const_input = TextInput(title='cell count constant c2', value='0.025', placeholder='0.025')
     lag_const_input =  TextInput(title='lag (integer days)',     value='0')
     autotune_button =  Button(label='Calculate c1 & c2', button_type="success")    
     export_button = Button(label='Export to csv', button_type="success")
+    tox_init_input = TextInput(title='model initial toxicity (µg/100g)',   value='', placeholder='most recent toxicity (interpolated)')
     
     # Create main plot and layout #
     fig = plot_shelltox(df, show_slider=False)
     layout = row(WidgetBox(year_select, model_esp_select, model_tox_select,
+                           lag_const_input, tox_init_input,
                            tox_const_input, cell_const_input, 
-                           autotune_button, lag_const_input,
+                           autotune_button, 
                            export_button,
                            width = 250),
                  column(fig, width = 800), 
@@ -998,14 +1020,14 @@ def modify_model_plot(doc):
         
         # when a new dataset is loaded, update the selector boxes trigger plot update on final update
         all_series = df.columns.tolist()
-        esps = [serie for serie in all_series if serie.upper().startswith('ESP')]
-        toxs = [serie for serie in all_series if serie.upper().startswith('TOX')]
+        esps = [serie for serie in all_series if serie.upper().startswith('ESP') or serie.upper().startswith('IFCB')]
+        toxs = [serie for serie in all_series if serie.upper().startswith('TOX') or serie.upper().startswith('PSP')]
         model_esp_select.remove_on_change('value',update_plot) # prevents pre-mature triggering of
         model_tox_select.remove_on_change('value',update_plot) # tox and esp const update() callback
         model_esp_select.options = esps
         model_tox_select.options = toxs 
         model_esp_select.value = esps[0]  
-        model_tox_select.value = toxs[0] 
+        model_tox_select.value = toxs[0] if toxs else ''
         model_esp_select.on_change('value',update_plot)
         model_tox_select.on_change('value',update_plot)
         p = plot_shelltox(df, show_slider=False, title=new)
@@ -1020,14 +1042,18 @@ def modify_model_plot(doc):
         else:
             esp_name = esp.split(' ')[1]
                
-        tox_name = tox.split(' ')[1]
-        model_name = '{}-{} Model'.format(esp_name, tox_name)
-        return model_name
+        try: tox_name = tox.split(' ')[1]
+        except IndexError: tox_name=tox
+        if tox_name == '':
+            return '{} Model'.format(esp_name)
+        else:
+            model_name = '{}-{} Model'.format(esp_name, tox_name)
+            return model_name
         
 
     def update_plot(attr, old, new):
         ''' update_plot creates a plot for the currently selected ESP and shellfish-site.
-            If tox_const, cell_const, and lag are specified and valid, it add a model to 
+            If tox_const, cell_const, and lag are specified and valid, it adds a model to 
             the plot and show a trendline for the model.
         '''
         global df
@@ -1035,28 +1061,38 @@ def modify_model_plot(doc):
             tox_const = float(tox_const_input.value)
             cell_const = float(cell_const_input.value)
             lag_const = int(lag_const_input.value)
+            tox_init = tox_init_input.value
+            if tox_init=='': tox_init=None # replaces T0 value
+            else: tox_init = float(tox_init)
+
         except:
             plot_sans_model = plot_shelltox(df[[model_esp_select.value,model_tox_select.value]], show_slider=False)
             layout.children[1] = column(plot_sans_model)
             return
-        
+
         model_name = format_model_name(model_esp_select.value,model_tox_select.value)
-        
+
         # Calculate model points
         rms,df2plot = model_tox_series(df, model_esp_select.value, model_tox_select.value, model_name, 
-                                   tox_const, cell_const, lag_const, T0)
-        df2plot = df2plot[[model_esp_select.value,model_tox_select.value,model_name]]
+                                       tox_const, cell_const, lag_const, tox_init)
+        if model_tox_select.value != '':
+            df2plot = df2plot[[model_esp_select.value,model_tox_select.value,model_name]]
+        else:
+            df2plot = df2plot[[model_esp_select.value,model_name]]
 
         # Calculate Model Stats
-        descriptive_text,regression_tabbed_tableplot, r2 = plot_many_regressions(df2plot, model_tox_select.value, model_name)
-        descriptive_text = PreText(text = descriptive_text, width=600)
-        
+        try:
+            descriptive_text,regression_tabbed_tableplot, r2 = plot_many_regressions(df2plot, model_tox_select.value, model_name)
+            descriptive_text = PreText(text = descriptive_text, width=600)
+        except: r2=0
+
         #Create Plot and update/replace the layout
         title = '{} at {} (γ={:.2f}, β={:.3f}, rmse={:.3f}, r2={:.1f}%)'.format(model_esp_select.value, 
                                                                                 model_tox_select.value.replace('TOX ',''), 
                                                                                 1-tox_const, cell_const, rms, 100*r2)        
         p = plot_shelltox(df2plot, show_slider=False, title=title)
-        layout.children[1] = column(p, regression_tabbed_tableplot, descriptive_text)
+        try: layout.children[1] = column(p, regression_tabbed_tableplot, descriptive_text)
+        except NameError: layout.children[1] = column(p)
         autotune_button.label = 'Calculate c1 & c2'
         
         export_filename = '{}_{}.csv'.format(year_select.value.replace('.csv',''), model_name.replace(' ','_'))
@@ -1069,22 +1105,37 @@ def modify_model_plot(doc):
     tox_const_input.on_change( 'value', update_plot)
     cell_const_input.on_change('value', update_plot)
     lag_const_input.on_change( 'value', update_plot)
-    
+    tox_init_input.on_change(  'value', update_plot)
 
     def autotune():
         ''' autotune calls a recursive function that determines the best c1 and c2 values
             for the selected ESP and shellfish-site.
         '''
         global df
-        autotune_button.label = 'processing'
-        try: lag = float(lag_const_input.value)
-        except ValueError: print('LAG INVALID');return
+        autotune_button.label = 'processing...'
+        try: lag = int(lag_const_input.value)
+        except ValueError: 
+            print('LAG INVALID')
+            autotune_button.label = 'error: lag invalid'
+            return
+        
+        try:
+            tox_init = tox_init_input.value.strip()
+            if tox_init=='': tox_init=None # replaces T0 value
+            else: tox_init = float(tox_init)
+        except ValueError: 
+            print('TOX_INIT INVALID') 
+            autotune_button.label = 'error: initial_toxicity invalid'
+            return
+        
         model_name = format_model_name(model_esp_select.value, model_tox_select.value)
         rms, c1, c2, df, _ = model_autotune_recursive_walk(df, model_esp_select.value, 
                                                            model_tox_select.value, 
-                                                           model_name, lag=lag, T0=T0)
+                                                           model_name, lag=lag, T0=tox_init)
                                                                    
+        autotune_button.label = 'Calculate c1 & c2'
         tox_const_input.value, cell_const_input.value = str(c1), str(c2)
+
     autotune_button.on_click(autotune)
 
     # initial download button callback. this callback is overwritten with the correct df every plot update
