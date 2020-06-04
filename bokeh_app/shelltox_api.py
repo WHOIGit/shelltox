@@ -24,10 +24,8 @@
 
 ## IMPORTS ##
 import pandas as pd
-from math import isnan
-from pprint import pprint
+from math import isnan,sqrt
 from statistics import mean
-from math import sqrt
 from io import StringIO
 
 ## BOKEH IMPORTS & SETUP ##
