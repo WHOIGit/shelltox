@@ -1,6 +1,6 @@
 # Shellfish Toxicity Modeling
 Red tide is a type of harmful algae bloom that affects human and wild marine activities.
-This project seeks to correlate the Hazardous Algae Bloom (HAB) cell counts of *Alexandrium Catenella* (red tide) with toxin concentration (Saxitoxin hydrochloride) in Blue Mussels (*Mytilus edulis*). This project focuses on data collected off of the coast of Maine.
+This project seeks to correlate the Hazardous Algae Bloom (HAB) cell counts of *Alexandrium Catenella* (red tide) with toxin concentration (Saxitoxin hydrochloride) in Blue Mussels (*Mytilus edulis*). This project focuses on data collected off of the coast of Maine. The lead scientist for this project is Don Anderson.
 
 From cell counts, a model of shellfish toxicity is projected over time. Uptake and Depuration constants (alpha and gamma) are determined from correlating historical measured toxicities with modeled toxicity over a range of constants. 
 
