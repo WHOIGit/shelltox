@@ -13,7 +13,7 @@
 # * T(0) by default is the first available measured toxicity value (where there is ALSO available ESP data) is used. It can however be set to any desired starting value.
 # * C(t) is an ESP cell count for day t, values are interpolated if missing (minus tau τ days to account for drift lag, if any) 
 # * c1 (aka 1-γ) is the toxicity constant, gamma γ is Depuration constant
-# * c2 (aka α) is the cell count constant, as α*C() this is our uptake
+# * c2 (aka β) is the cell count constant, as β*C() this is our uptake
 # 
 # c1 and c2 are found by performing a gradient descent search over an option space of thousands possible values before finally selecting the pair resulting in the least root mean square deviation between the available measured toxicity values and modeled toxicity values for the same dates as the available measured values.
 
@@ -247,7 +247,7 @@ def model_tox_series(df, cell_col, tox_col, tox_col_model, tox_const, cell_const
     tox_col_model is the name to be given to the newly generated model data
     tox_const and cell_const are c1 and c2 respectivly. 
     c1 = 1-gamma, where gamma (γ) is the depuration constant.
-    c2 = alpha, where alpha (α) is the uptake constant
+    c2 = beta, where beta (β) is the uptake constant
     lag is the estimated time it takes for cells identified at an ESP to reach a downstream shellfish site,
         in integer days. Typically this value is 0 days or 1 days.
     T0 is the initial toxicity value. By default it is 0. 
@@ -987,11 +987,11 @@ def modify_model_plot(doc):
     year_select      = Select(title='Dataset',          options=datasets,   value=datasets[-1])
     model_esp_select = Select(title='ESP for Modeling', options=esp_series, value=esp_series[0] if esp_series else '')
     model_tox_select = Select(title='Shellfish Site',   options=tox_series, value=tox_series[0] if tox_series else '')
-    cell_const_input = TextInput(title='Uptake Constant (α)',     value='0.014', placeholder='0.014')
+    cell_const_input = TextInput(title='Uptake Constant (β)',     value='0.014', placeholder='0.014')
     tox_const_input  = TextInput(title='Depuration Constant (γ)', value='0.1',   placeholder='0.1')
     lag_const_input  = TextInput(title='lag (integer days)',      value='0')
-    autotune_button  = Button(label='Calculate α & γ', button_type="success")    
-    autotune_alpha_button = Button(label='Calculate α (hold γ)', button_type="success")    
+    autotune_button  = Button(label='Calculate β & γ', button_type="success")    
+    autotune_beta_button = Button(label='Calculate β (hold γ)', button_type="success")    
     export_button    = Button(label='Export to csv', button_type="success")
     tox_init_input   = TextInput(title='model initial toxicity (µg/100g)', value='', placeholder='most recent toxicity (interpolated)')
     
@@ -1001,7 +1001,7 @@ def modify_model_plot(doc):
                            lag_const_input, tox_init_input,
                            cell_const_input, tox_const_input, 
                            autotune_button, 
-                           autotune_alpha_button,
+                           autotune_beta_button,
                            export_button,
                            width = 250),
                  column(fig, width = 800), 
@@ -1089,14 +1089,14 @@ def modify_model_plot(doc):
         except: r2=0
 
         #Create Plot and update/replace the layout
-        title = '{} at {} (α={:.3f}, γ={:.2f}, rmse={:.3f}, r2={:.1f}%)'.format(model_esp_select.value, 
+        title = '{} at {} (β={:.3f}, γ={:.2f}, rmse={:.3f}, r2={:.1f}%)'.format(model_esp_select.value, 
                                                                                 model_tox_select.value.replace('TOX ',''), 
                                                                                 cell_const, 1-tox_const, rms, 100*r2)        
         p = plot_shelltox(df2plot, show_slider=False, title=title)
         try: layout.children[1] = column(p, regression_tabbed_tableplot, descriptive_text)
         except NameError: layout.children[1] = column(p)
-        autotune_button.label = 'Calculate α & γ'
-        autotune_alpha_button.label = 'Calculate α (hold γ)'
+        autotune_button.label = 'Calculate β & γ'
+        autotune_beta_button.label = 'Calculate β (hold γ)'
         
         export_filename = '{}_{}.csv'.format(year_select.value.replace('.csv',''), model_name.replace(' ','_'))
         export_button.callback = CustomJS(args=dict(file_content=df2plot.to_csv(), file_name=export_filename), 
@@ -1136,21 +1136,21 @@ def modify_model_plot(doc):
                                                            model_tox_select.value, 
                                                            model_name, lag=lag, T0=tox_init)
                                                                    
-        autotune_button.label = 'Calculate α & γ'
+        autotune_button.label = 'Calculate β & γ'
         tox_const_input.value, cell_const_input.value = str(round(1-c1,3)), str(round(c2,3))
 
     autotune_button.on_click(autotune)
 
-    def autotune_alpha():
+    def autotune_beta():
         ''' autotune calls a recursive function that determines the best c2 value while holding c1 (depuration) constant
             for the selected ESP and shellfish-site.
         '''
         global df
-        autotune_alpha_button.label = 'processing...'
+        autotune_beta_button.label = 'processing...'
         try: lag = int(lag_const_input.value)
         except ValueError: 
             print('LAG INVALID')
-            autotune_alpha_button.label = 'error: lag invalid'
+            autotune_beta_button.label = 'error: lag invalid'
             return
         
         try:
@@ -1159,7 +1159,7 @@ def modify_model_plot(doc):
             else: tox_init = float(tox_init)
         except ValueError: 
             print('TOX_INIT INVALID') 
-            autotune_alpha_button.label = 'error: initial_toxicity invalid'
+            autotune_beta_button.label = 'error: initial_toxicity invalid'
             return
         
         tox_const = 1-float(tox_const_input.value) #c1
@@ -1167,10 +1167,10 @@ def modify_model_plot(doc):
         rms, c1, c2, df, _ = model_autotune_brute(df, model_esp_select.value, model_tox_select.value, model_name, 
                                                   lag_range=[lag], T0=tox_init, tox_const_range=[tox_const])
 
-        autotune_alpha_button.label = 'Calculate α (hold γ)'
+        autotune_beta_button.label = 'Calculate β (hold γ)'
         tox_const_input.value, cell_const_input.value = str(round(1-c1,3)), str(round(c2,3))
 
-    autotune_alpha_button.on_click(autotune_alpha)
+    autotune_beta_button.on_click(autotune_beta)
 
     # initial download button callback. this callback is overwritten with the correct df every plot update
     export_button.callback = CustomJS(args=dict(file_content=df.to_csv(), file_name=datasets[-1]), 
