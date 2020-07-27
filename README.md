@@ -2,7 +2,7 @@
 Red tide is a type of harmful algae bloom that affects human and wild marine activities.
 This project seeks to correlate the Hazardous Algae Bloom (HAB) cell counts of *Alexandrium Catenella* (red tide) with toxin concentration (Saxitoxin hydrochloride) in Blue Mussels (*Mytilus edulis*). This project focuses on data collected off of the coast of Maine.
 
-From cell counts, a model of shellfish toxicity is projected over time. Uptake and Depuration constants (alpha and gamma) are determined from correlating historical measured toxicities with modeled toxicity over a range of constants. 
+From cell counts, a model of shellfish toxicity is projected over time. Uptake and Depuration constants (beta and gamma) are determined from correlating historical measured toxicities with modeled toxicity over a range of constants. 
 
 The tools presented herein are designed to present the collected data and calculated toxicity models, and to determine good uptake and depuration constants.
 
@@ -16,10 +16,10 @@ bokeh_app is a graphical modeling tool for viewing and interacting with data and
 
 ![bokeh_app_example](https://github.com/WHOIGit/shelltox/tree/master/misc/bokeh_app_example.png)
 
-## AlphaGamma
-alphagamma is a CLI tool for calculating best uptake and depuration constants for a series of years and data-locations. It also calculates estimated best overall constants for a given input series.
+## BetaGamma
+betagamma is a CLI tool for calculating best uptake and depuration constants for a series of years and data-locations. It also calculates estimated best overall constants for a given input series.
 
-Basic usage: `python alphagamma.py alphagamma.ini --src ../data`
+Basic usage: `python betagamma.py betagamma.ini --src ../data`
 
-Here, `alphagamma.ini` is a configuration file containing year-location triplets with a strong corellation between HAB and measured shellfish toxicity.
+Here, `betagamma.ini` is a configuration file containing year-location triplets with a strong corellation between HAB and measured shellfish toxicity.
 

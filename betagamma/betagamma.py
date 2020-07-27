@@ -70,7 +70,7 @@ def model_tox_series(df, cell_col, tox_col, tox_col_model, tox_const, cell_const
     tox_col_model is the name to be given to the newly generated model data
     tox_const and cell_const are c1 and c2 respectivly. 
     tox_const = c1 = 1-gamma, where gamma is the depuration value
-    cell_const = c2 = alpha, where alpha is the uptake value
+    cell_const = c2 = beta, where beta is the uptake value
     lag is the estimated time it takes for cells identified at an ESP to reach a downstream shellfish site,
         in integer days. Typically this value is 0 days or 1 days.
     T0 is the initial model toxicity value. 
@@ -122,48 +122,48 @@ def model_tox_series(df, cell_col, tox_col, tox_col_model, tox_const, cell_const
     
     
     
-def calculate_RMS_table(input_tups,alpha_gammas, T0=None, output='df'):
+def calculate_RMS_table(input_tups,beta_gammas, T0=None, output='df'):
     """
-    Calculates RMS for all year-location-pairs for all alpha_gammas. 
-    Additionally calculates cumulative RMS across year-location-pairs for all_alpha gammas.
+    Calculates RMS for all year-location-pairs for all beta_gammas. 
+    Additionally calculates cumulative RMS across year-location-pairs for all beta_gammas.
     Input tups must be a list of tuples with 4 elements: model_column_label,esp_column_label,tox_column_label,dataframe
-    alpha_gammas is a list of alpha and gamma tuples
+    beta_gammas is a list of beta and gamma tuples
     T0 is the initial model toxicity value. Default is None (select value automatically)
     output changes the output format. If 'df', a dataframe is returned. 
            If any other string, a csv with that filename is created.
            If anything else, eg None, a dict is returned.
     """
     print('Calculating RMS')
-    alphas,gammas = list(zip(*alpha_gammas))
-    df_data = dict(alphas=alphas,gammas=gammas)
+    betas,gammas = list(zip(*beta_gammas))
+    df_data = dict(betas=betas,gammas=gammas)
     
     cumu_toxlist = dict()
-    for a,g in alpha_gammas:
+    for a,g in beta_gammas:
         cumu_toxlist[(a,g)] = dict(real=[],model=[])
     
     for col,esp,tox,sub_df in input_tups:
         print('   ',col)
-        alpha_gamma_results = []
-        for a,g in alpha_gammas:
+        beta_gamma_results = []
+        for a,g in beta_gammas:
             rms,_,toxlist_real,toxlist_model = model_tox_series(sub_df, esp, tox, col, tox_const=1-g, cell_const=a, T0=T0)
-            alpha_gamma_results.append(rms)
+            beta_gamma_results.append(rms)
             cumu_toxlist[(a,g)]['real'].extend(toxlist_real)
             cumu_toxlist[(a,g)]['model'].extend(toxlist_model)
-        df_data[col] = alpha_gamma_results
+        df_data[col] = beta_gamma_results
 
     print('   ','Cumulative RMS (cumu_rms)')
-    for a,g in alpha_gammas:
+    for a,g in beta_gammas:
         cumu_toxlist[(a,g)]['rms'] = calc_rms(cumu_toxlist[(a,g)]['real'],cumu_toxlist[(a,g)]['model'])
         #cumu_toxlist[(a,g)]['sos'] = calc_sos(cumu_toxlist[(a,g)]['real'],cumu_toxlist[(a,g)]['model'])
-    df_data['cumu_rms'] = [cumu_toxlist[(a,g)]['rms'] for a,g in alpha_gammas]
+    df_data['cumu_rms'] = [cumu_toxlist[(a,g)]['rms'] for a,g in beta_gammas]
 
     print()
     if output=='df':
         df = pd.DataFrame(df_data)
-        return df.set_index(['alphas','gammas'])
+        return df.set_index(['betas','gammas'])
     elif isinstance(output,str):
         df = pd.DataFrame(df_data)
-        df = df.set_index(['alphas','gammas'])
+        df = df.set_index(['betas','gammas'])
         df.to_csv(output)
     else:
         return df_data
@@ -173,7 +173,7 @@ def calculate_RMS_table(input_tups,alpha_gammas, T0=None, output='df'):
 def annotate(df, outfile=None, print_final=[1,2,3]):
     """
     Adds footer and final columns with value means to input dataframe df
-         Footer includes best-rms on a per-column basis and the associated alpha and gamma values
+         Footer includes best-rms on a per-column basis and the associated beta and gamma values
     If outfile is specified, the table is saved to the entered filename.
        outfile may also be "stdout" in which case the a reduced summary table is displayed
     print_final is optional and (if outfile is not "stdout") shows the final results for method1, method2, and method3.
@@ -181,36 +181,36 @@ def annotate(df, outfile=None, print_final=[1,2,3]):
     """
     print('Annotating Table...')
     df = df.copy()
-    #df = df.set_index(['alphas','gammas'])
+    #df = df.set_index(['betas','gammas'])
     cumu_series = df['cumu_rms']
     df = df.drop('cumu_rms',axis=1)
         
     valmin_mean1 = df.min().mean()
-    alpha_mins,gamma_mins = list(zip(*df.idxmin().tolist()))
-    alphamin_mean1,gammamin_mean1 = mean(alpha_mins),mean(gamma_mins)
+    beta_mins,gamma_mins = list(zip(*df.idxmin().tolist()))
+    betamin_mean1,gammamin_mean1 = mean(beta_mins),mean(gamma_mins)
 
     df[''] = pd.Series()
     df['method1_mean'] = pd.Series()
     df['method2_mean'] = df.mean(axis=1)
     df['method3_cumu'] = cumu_series
         
-    alpha_mins,gamma_mins = list(zip(*[tup if isinstance(tup,tuple) else (np.nan,np.nan) for tup in df.idxmin().tolist()]))
+    beta_mins,gamma_mins = list(zip(*[tup if isinstance(tup,tuple) else (np.nan,np.nan) for tup in df.idxmin().tolist()]))
 
     df = df.append(pd.Series(name=('','')))
     df.loc[('best','rms'),:] = df.min()
-    df.loc[('best','alpha'),:] = alpha_mins
+    df.loc[('best','beta'),:] = beta_mins
     df.loc[('best','gamma'),:] = gamma_mins
 
     df.loc[('best','rms'),'method1_mean'] = valmin_mean1
-    df.loc[('best','alpha'),'method1_mean'] = alphamin_mean1
+    df.loc[('best','beta'),'method1_mean'] = betamin_mean1
     df.loc[('best','gamma'),'method1_mean'] = gammamin_mean1
 
     valmin_mean2   = df.loc[('best','rms'),'method2_mean']
-    alphamin_mean2 = df.loc[('best','alpha'),'method2_mean']
+    betamin_mean2 = df.loc[('best','beta'),'method2_mean']
     gammamin_mean2 = df.loc[('best','gamma'),'method2_mean']
     
     valmin_cumu   = df.loc[('best','rms'),'method3_cumu']
-    alphamin_cumu = df.loc[('best','alpha'),'method3_cumu']
+    betamin_cumu = df.loc[('best','beta'),'method3_cumu']
     gammamin_cumu = df.loc[('best','gamma'),'method3_cumu']
     
     print('Outputting table to:', outfile)
@@ -223,22 +223,22 @@ def annotate(df, outfile=None, print_final=[1,2,3]):
 
     if print_final: print('Final Results:')
     if print_final==[3]:
-        print('    least-rms={:.3f}, alpha-gamma=({:.3f},{:.3f})'.format(valmin_cumu,alphamin_cumu,gammamin_cumu))
+        print('    least-rms={:.3f}, beta-gamma=({:.3f},{:.3f})'.format(valmin_cumu,betamin_cumu,gammamin_cumu))
     elif print_final:
-        if 1 in print_final: print('  Method1:  mean-rms={:.3f}, alpha-gamma=({:.3f},{:.3f})'.format(valmin_mean1,alphamin_mean1,gammamin_mean1))
-        if 2 in print_final: print('  Method2:  mean-rms={:.3f}, alpha-gamma=({:.3f},{:.3f})'.format(valmin_mean2,alphamin_mean2,gammamin_mean2))
-        if 3 in print_final: print('  Method3: least-rms={:.3f}, alpha-gamma=({:.3f},{:.3f})'.format(valmin_cumu,alphamin_cumu,gammamin_cumu))
+        if 1 in print_final: print('  Method1:  mean-rms={:.3f}, beta-gamma=({:.3f},{:.3f})'.format(valmin_mean1,betamin_mean1,gammamin_mean1))
+        if 2 in print_final: print('  Method2:  mean-rms={:.3f}, beta-gamma=({:.3f},{:.3f})'.format(valmin_mean2,betamin_mean2,gammamin_mean2))
+        if 3 in print_final: print('  Method3: least-rms={:.3f}, beta-gamma=({:.3f},{:.3f})'.format(valmin_cumu,betamin_cumu,gammamin_cumu))
 
     return df        
 
 
 
-def parse_input_args(targets, alpha_arg, gamma_arg, src=None):
+def parse_input_args(targets, beta_arg, gamma_arg, src=None):
     """
     Converts cli input values to a format usable by calculate_RMS_table. 
     Also checks that input args are valid.
     targets is a list of strings where each string has the followwing format: "YEARfile,ESP column,TOX column"
-    alpha_arg and gamma_arg are either a single-item list containing a float, or a 3 item list with 3 floats: START STOP STEP
+    beta_arg and gamma_arg are either a single-item list containing a float, or a 3 item list with 3 floats: START STOP STEP
     """
     print('validating input...')
     input_tups = []
@@ -258,14 +258,14 @@ def parse_input_args(targets, alpha_arg, gamma_arg, src=None):
         input_tups.append((col,esp,tox,sub_df))
     
     print()
-    if len(alpha_arg)==3:
-        start,stop,step = alpha_arg
-        alphas = np.arange(start,stop+step*0.999,step)
-        alphas = [round(a, 6) for a in alphas]
-        print('Uptake Range: {} to {} ({} steps)'.format(start,stop,len(alphas)))
+    if len(beta_arg)==3:
+        start,stop,step = beta_arg
+        betas = np.arange(start,stop+step*0.999,step)
+        betas = [round(a, 6) for a in betas]
+        print('Uptake Range: {} to {} ({} steps)'.format(start,stop,len(betas)))
     else:
-        alphas = alpha_arg
-        print('Uptake = {}'.format(alphas[0]))
+        betas = beta_arg
+        print('Uptake = {}'.format(betas[0]))
     
     if len(gamma_arg)==3:
         start,stop,step = gamma_arg
@@ -276,12 +276,12 @@ def parse_input_args(targets, alpha_arg, gamma_arg, src=None):
         gammas = gamma_arg
         print('Depuration = {}'.format(gammas[0]))
 
-    alpha_gammas = []
-    for a in alphas:
+    beta_gammas = []
+    for a in betas:
         for g in gammas:
-            alpha_gammas.append((a,g))
+            beta_gammas.append((a,g))
     print()
-    return input_tups,alpha_gammas
+    return input_tups,beta_gammas
     
                
 
@@ -291,11 +291,11 @@ if __name__ == "__main__":
     parser.add_argument("input", nargs="+", metavar="YEAR,ESP,TOX", help='List of "YEAR,ESP,TOX" labels. "YEAR" is the filename of a YEAR.csv file found in SRC, "ESP" and "TOX" are column-headers from YEAR.csv. Note that each triplet should be space-delimited and surrounded by quotes "". This positional argument will also accept a configuration file in the described format, newline-delimited.')
     parser.add_argument("--src", help="Path to directory with input csv datafiles. Default is the current working directory.")
 
-    groupA = parser.add_mutually_exclusive_group()
-    groupA.add_argument("-a", "--alphas", dest='alpha_args', default=[0,0.05,0.001], 
+    groupB = parser.add_mutually_exclusive_group()
+    groupB.add_argument("-b", "--betas", dest='beta_args', default=[0,0.05,0.001], 
                         nargs=3, type=float, metavar=('START','STOP','STEP'),
                         help='Range of uptake constants to asses. Default is "0 0.05 0.001". Mutually-exclusive with UPTAKE.')
-    groupA.add_argument("-u","--uptake", metavar='UPTAKE',dest='alpha_args', nargs=1, type=float, help='Single locked-in uptake constant. Mutually-exclusive with --alphas.')
+    groupB.add_argument("-u","--uptake", metavar='UPTAKE',dest='beta_args', nargs=1, type=float, help='Single locked-in uptake constant. Mutually-exclusive with --betas.')
     
     groupG = parser.add_mutually_exclusive_group()
     groupG.add_argument("-d","--depuration",metavar='DEPURATION',dest='gamma_args',nargs=1,type=float, default=[0.1],
@@ -328,10 +328,10 @@ if __name__ == "__main__":
                 args.input.append(line.strip())
 
     ## Parse and Validate Inputs
-    input_tups, alpha_gammas = parse_input_args(args.input, args.alpha_args, args.gamma_args, args.src)
+    input_tups, beta_gammas = parse_input_args(args.input, args.beta_args, args.gamma_args, args.src)
 
     ## Calculate Results
-    df = calculate_RMS_table(input_tups, alpha_gammas, T0=args.model_init)
+    df = calculate_RMS_table(input_tups, beta_gammas, T0=args.model_init)
     df = annotate(df, outfile=args.outfile, print_final=args.method)
     
     
